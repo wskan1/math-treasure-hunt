@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Canvas Confetti 彩帶特效 -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-  <!-- PeerJS 免費 WebRTC 即時雲端同步庫 -->
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- MQTT.js 雲端穿透通訊庫 (完美穿透學校 Wi-Fi 隔離) -->
+  <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
   <style>
     @keyframes bounce-chest {
       0%, 100% { transform: translateY(0); }
@@ -32,15 +32,18 @@
         <h1 class="text-base font-black tracking-tight flex items-center gap-2">
           公式與代入法：尋寶大冒險 2.0
           <span id="syncBadge" class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold border border-slate-700">
-            <i class="fa-solid fa-wifi text-amber-400 mr-1"></i> 連線準備中
+            <i class="fa-solid fa-spinner fa-spin mr-1"></i> 連線中...
           </span>
         </h1>
         <p class="text-xs text-indigo-300">iPad 即時雲端連動競賽系統</p>
       </div>
     </div>
 
-    <!-- 教師主控台按鈕 (需輸入 0523 解鎖) -->
-    <div>
+    <!-- 右上角按鈕區 -->
+    <div class="flex items-center gap-2">
+      <button onclick="toggleLeaderboardModal()" class="text-xs bg-indigo-800 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg border border-indigo-600 transition flex items-center gap-1">
+        <i class="fa-solid fa-trophy text-amber-400"></i> 排行榜
+      </button>
       <button onclick="requestTeacherAccess()" class="text-xs bg-amber-500 hover:bg-amber-600 text-slate-900 font-black px-3 py-1.5 rounded-lg shadow transition active:scale-95 flex items-center gap-1.5">
         <i class="fa-solid fa-lock"></i> 教師主控台
       </button>
@@ -163,14 +166,14 @@
       </div>
     </div>
 
-    <!-- 畫面 4：開箱成功結算畫面 -->
+    <!-- 畫面 4：開箱成功結算畫面 (實時反饋個人名次與得分) -->
     <div id="viewSuccess" class="hidden bg-white p-7 rounded-3xl shadow-2xl border-2 border-emerald-400 text-center w-full">
       <div class="w-20 h-20 bg-amber-100 text-amber-500 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-3 animate-chest shadow-inner">
         <i class="fa-solid fa-box-open"></i>
       </div>
       <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black inline-block mb-1.5">🎉 寶箱成功解開！</span>
-      <h2 class="text-2xl font-black text-slate-900 mb-1">恭喜通關！</h2>
-      <p id="rankFeedbackText" class="text-sm text-slate-600 mb-4 font-bold">完成開箱！資料已同步回傳教師大螢幕</p>
+      <h2 id="successRankTitle" class="text-2xl font-black text-slate-900 mb-1">正在結算名次...</h2>
+      <p id="rankFeedbackText" class="text-sm text-slate-600 mb-4 font-bold">請稍候，雲端正在同步排名與得分...</p>
 
       <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left text-xs space-y-1.5 mb-4">
         <div class="font-bold text-slate-500">標準解密密碼回顧：</div>
@@ -179,15 +182,31 @@
         </div>
       </div>
 
-      <div class="text-xs text-slate-400">請稍候，待老師公佈板書並在主控台按「下一題」時，本 iPad 將自動跳轉！</div>
+      <div class="text-xs text-slate-400">請保持專注，待老師公佈板書並在主控台按「下一題」時，本 iPad 將自動跳轉！</div>
     </div>
 
   </main>
 
   <!-- 底部版權 -->
   <footer class="text-center text-xs text-slate-400 py-2.5 border-t border-slate-200">
-    初中數學科 • 公式代入法尋寶大冒險 2.0 (雲端同步版)
+    初中數學科 • 公式代入法尋寶大冒險 2.0 (MQTT 雲端總線版)
   </footer>
+
+  <!-- 學生端/全班共用：即時排行榜 Modal -->
+  <div id="leaderboardModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+        <div class="flex items-center gap-2 text-indigo-900 font-black text-lg">
+          <i class="fa-solid fa-trophy text-amber-500"></i> 全班即時競賽排行榜
+        </div>
+        <button onclick="toggleLeaderboardModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+      </div>
+      <div id="publicLeaderboardList" class="space-y-1.5 max-h-64 overflow-y-auto pr-1"></div>
+      <div class="pt-4 border-t border-slate-100 text-center mt-3">
+        <button onclick="toggleLeaderboardModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">關閉視窗</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 教師控制台視窗 (PIN 碼 0523 保護) -->
   <div id="teacherModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -198,7 +217,7 @@
             <i class="fa-solid fa-chalkboard-user text-xl text-amber-500"></i>
             <div>
               <h3 class="text-lg font-black">教師主控台（全班雲端連動）</h3>
-              <p id="teacherSyncStatus" class="text-xs text-emerald-600 font-bold">🟢 廣播主機運作中（已連線 0 台 iPad）</p>
+              <p id="teacherSyncStatus" class="text-xs text-emerald-600 font-bold">🟢 雲端總線就緒（雙向即時通訊中）</p>
             </div>
           </div>
           <button onclick="toggleTeacherModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
@@ -210,30 +229,33 @@
             <span class="text-[10px] text-slate-400 block font-bold mb-1">題目控制 (全班同步翻頁)</span>
             <span id="currentChestDisplay" class="text-lg font-black text-indigo-900 block">第 1 題 / 共 7 題</span>
             <div class="mt-2.5 flex gap-1.5">
-              <button onclick="teacherPrevChest()" class="flex-1 bg-white border border-slate-300 text-xs py-1.5 rounded-lg font-bold hover:bg-slate-100">上題</button>
-              <button onclick="teacherNextChest()" class="flex-1 bg-indigo-600 text-white text-xs py-1.5 rounded-lg font-bold hover:bg-indigo-700">下題</button>
+              <button onclick="teacherPrevChest()" class="flex-1 bg-white border border-slate-300 text-xs py-2 rounded-lg font-bold hover:bg-slate-100 shadow-sm active:scale-95">上題</button>
+              <button onclick="teacherNextChest()" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-sm active:scale-95">下題</button>
             </div>
           </div>
           <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
             <span class="text-[10px] text-slate-400 block font-bold mb-1">課堂節奏 (強制鎖定/解鎖)</span>
             <span id="gameStateDisplay" class="text-lg font-black text-emerald-600 block">解密進行中</span>
             <div class="mt-2.5 flex gap-1.5">
-              <button onclick="setGameState('waiting')" class="flex-1 bg-amber-500 text-white text-xs py-1.5 rounded-lg font-bold hover:bg-amber-600">看黑板</button>
-              <button onclick="setGameState('playing')" class="flex-1 bg-emerald-600 text-white text-xs py-1.5 rounded-lg font-bold hover:bg-emerald-700">開始算</button>
+              <button onclick="teacherSetState('waiting')" class="flex-1 bg-amber-500 text-white text-xs py-2 rounded-lg font-bold hover:bg-amber-600 shadow-sm active:scale-95">看黑板</button>
+              <button onclick="teacherSetState('playing')" class="flex-1 bg-emerald-600 text-white text-xs py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-sm active:scale-95">開始算</button>
             </div>
           </div>
         </div>
 
         <!-- 各組即時排行榜 -->
         <div>
-          <h4 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">小組即時總分榜 (雲端同步)</h4>
-          <div id="leaderboardList" class="space-y-1 max-h-40 overflow-y-auto pr-1"></div>
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-wider">小組即時總分榜 (雲端同步)</h4>
+            <span id="chestSolvedCounter" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">本題通關：0 組</span>
+          </div>
+          <div id="teacherLeaderboardList" class="space-y-1 max-h-40 overflow-y-auto pr-1"></div>
         </div>
       </div>
 
       <div class="pt-4 border-t border-slate-200 flex justify-between items-center text-xs mt-4">
         <span class="text-slate-400 font-bold">管理 PIN: 0523</span>
-        <button onclick="resetAllGame()" class="text-rose-600 hover:underline font-bold">重置全部資料</button>
+        <button onclick="teacherResetGame()" class="text-rose-600 hover:underline font-bold">重置全部資料</button>
       </div>
     </div>
   </div>
@@ -256,10 +278,11 @@
     let currentGroupName = "第 1 組";
     let isJoined = false;
     let groupScore = 0;
-    let gameState = "playing"; // "waiting" (看黑板) 或 "playing" (開始算)
+    let gameState = "playing"; // "waiting" 或 "playing"
     let currentSlots = ["", "", "", ""];
     let activeSlotIndex = 0;
-    let chestSubmittedTeams = 0;
+    let chestSolvedCount = 0; // 本題已有多少組通關
+    let isSolvedCurrentChest = false; // 本組當前題是否已通關
     const TEACHER_PIN = "0523";
 
     let teamsData = [
@@ -269,166 +292,123 @@
       { name: "第 7 組", score: 0 }, { name: "第 8 組", score: 0 }
     ];
 
-    // 3. PeerJS 雲端即時連動機制
-    const ROOM_HOST_ID = "math-treasure-hunt-fwf-2024"; // 固定的雲端廣播頻道
-    let peer = null;
-    let isTeacherHost = false;
-    let teacherConns = []; // 教師主機維護的所有學生 iPad 連線
-    let studentConn = null; // 學生 iPad 連線至教師主機的通道
+    // 3. MQTT 雲端總線架構 (學校 Wi-Fi 穿透保證)
+    const TOPIC_CONTROL = "twgh/math/treasure_v2/control";
+    const TOPIC_SOLVE   = "twgh/math/treasure_v2/solve";
+    const TOPIC_SCORES  = "twgh/math/treasure_v2/scores";
 
-    // 初始化學生端連線 (載入即自動連向老師主機)
-    function initStudentPeer() {
-      peer = new Peer();
-      peer.on('open', (id) => {
-        connectToHost();
-      });
+    let mqttClient = null;
+    const BROKERS = [
+      "wss://broker.emqx.io:8084/mqtt",
+      "wss://broker.hivemq.com:8884/mqtt"
+    ];
+    let brokerIndex = 0;
 
-      peer.on('error', (err) => {
-        console.log('Peer error:', err);
-      });
+    function initMQTT() {
+      const brokerUrl = BROKERS[brokerIndex];
+      const clientId = "client_" + Math.random().toString(16).substring(2, 10);
+      
+      try {
+        mqttClient = mqtt.connect(brokerUrl, {
+          clientId: clientId,
+          keepalive: 30,
+          clean: true,
+          reconnectPeriod: 2000
+        });
+
+        mqttClient.on('connect', () => {
+          setSyncBadge("🟢 雲端同步正常", "bg-emerald-800 text-emerald-200 border-emerald-600");
+          mqttClient.subscribe([TOPIC_CONTROL, TOPIC_SOLVE, TOPIC_SCORES], (err) => {
+            if (!err) console.log("Subscribed to MQTT topics successfully");
+          });
+        });
+
+        mqttClient.on('message', (topic, message) => {
+          try {
+            const data = JSON.parse(message.toString());
+            handleIncomingMessage(topic, data);
+          } catch(e) {
+            console.error("MQTT Parse error:", e);
+          }
+        });
+
+        mqttClient.on('error', (err) => {
+          console.warn("MQTT Error on " + brokerUrl, err);
+          setSyncBadge("🟡 切換備援中...", "bg-amber-800 text-amber-200 border-amber-600");
+          brokerIndex = (brokerIndex + 1) % BROKERS.length;
+          mqttClient.end(true);
+          setTimeout(initMQTT, 1500);
+        });
+
+        mqttClient.on('offline', () => {
+          setSyncBadge("🔴 連線中斷重試", "bg-rose-800 text-rose-200 border-rose-600");
+        });
+      } catch(err) {
+        console.error("MQTT init failed", err);
+      }
     }
 
-    function connectToHost() {
-      studentConn = peer.connect(ROOM_HOST_ID);
-      studentConn.on('open', () => {
-        setSyncBadge("🟢 雲端同步中", "bg-emerald-800 text-emerald-200 border-emerald-600");
-        // 向老師報到
-        studentConn.send({ type: 'REGISTER', groupName: currentGroupName });
-      });
-
-      studentConn.on('data', (data) => {
-        handleBroadcastMessage(data);
-      });
-
-      studentConn.on('close', () => {
-        setSyncBadge("🟡 連線中斷，重試中", "bg-amber-800 text-amber-200 border-amber-600");
-        setTimeout(connectToHost, 3000);
-      });
-    }
-
-    // 處理教師廣播過來的控制指令
-    function handleBroadcastMessage(data) {
-      if (data.type === 'SYNC_STATE') {
-        currentChestIndex = data.chestIndex;
-        gameState = data.gameState;
-        if (data.resetSlots) {
-          currentSlots = ["", "", "", ""];
-          activeSlotIndex = 0;
-          hideAlert();
+    // 處理收到的廣播封包
+    function handleIncomingMessage(topic, data) {
+      if (topic === TOPIC_CONTROL) {
+        if (data.type === 'SYNC_STATE') {
+          currentChestIndex = data.chestIndex;
+          gameState = data.gameState;
+          chestSolvedCount = data.chestSolvedCount || 0;
+          if (data.resetSlots) {
+            currentSlots = ["", "", "", ""];
+            activeSlotIndex = 0;
+            isSolvedCurrentChest = false;
+            hideAlert();
+          }
+          updateView();
         }
-        updateView();
-      } else if (data.type === 'UPDATE_LEADERBOARD') {
-        teamsData = data.teamsData;
+      } else if (topic === TOPIC_SOLVE) {
+        // 收到某組開箱成功
+        chestSolvedCount++;
+        const rank = chestSolvedCount;
+        const points = Math.max(100 - (rank - 1) * 10, 50);
+
+        // 更新團隊數據
+        const t = teamsData.find(item => item.name === data.groupName);
+        if (t) t.score += points;
+
+        // 若是本組通關，立即顯示名次
+        if (data.groupName === currentGroupName) {
+          groupScore += points;
+          displayPersonalRank(rank, points);
+        }
+
         renderLeaderboard();
+        updateTeacherSolvedText();
+      } else if (topic === TOPIC_SCORES) {
+        if (data.type === 'FULL_SYNC') {
+          teamsData = data.teamsData;
+          const myTeam = teamsData.find(item => item.name === currentGroupName);
+          if (myTeam) groupScore = myTeam.score;
+          renderLeaderboard();
+        }
       }
     }
 
     function setSyncBadge(text, cls) {
       const badge = document.getElementById('syncBadge');
-      badge.innerHTML = text;
-      badge.className = `text-[10px] px-2 py-0.5 rounded font-bold border ${cls}`;
-    }
-
-    // 4. 教師主控台初始化 (輸入 0523 後升級為 Host)
-    function requestTeacherAccess() {
-      const pin = prompt("請輸入教師管理員 4 位密碼：");
-      if (pin === TEACHER_PIN) {
-        if (!isTeacherHost) {
-          startTeacherHost();
-        }
-        toggleTeacherModal();
-      } else if (pin !== null) {
-        alert("密碼錯誤，無法進入教師主控台！");
+      if (badge) {
+        badge.innerHTML = text;
+        badge.className = `text-[10px] px-2 py-0.5 rounded font-bold border ${cls}`;
       }
     }
 
-    function startTeacherHost() {
-      if (peer) peer.destroy();
-      peer = new Peer(ROOM_HOST_ID); // 搶佔主機頻道
-
-      peer.on('open', () => {
-        isTeacherHost = true;
-        setSyncBadge("👑 教師主控廣播中", "bg-amber-400 text-slate-900 font-black border-amber-300");
-        updateTeacherSyncText();
-      });
-
-      peer.on('connection', (conn) => {
-        teacherConns.push(conn);
-        updateTeacherSyncText();
-
-        conn.on('data', (msg) => {
-          if (msg.type === 'REGISTER') {
-            broadcastState(); // 同步當前題目與狀態給剛連入的 iPad
-          } else if (msg.type === 'CHEST_SOLVED') {
-            handleStudentSolved(msg);
-          }
-        });
-
-        conn.on('close', () => {
-          teacherConns = teacherConns.filter(c => c !== conn);
-          updateTeacherSyncText();
-        });
-      });
-
-      peer.on('error', (err) => {
-        if (err.type === 'unavailable-id') {
-          // 主機已被開啟
-          isTeacherHost = true;
-          updateTeacherSyncText();
-        }
-      });
-    }
-
-    function updateTeacherSyncText() {
-      const el = document.getElementById('teacherSyncStatus');
-      if (el) {
-        el.innerText = `🟢 廣播主機運作中（已連線 ${teacherConns.length} 台 iPad）`;
-      }
-    }
-
-    // 教師廣播指令給全班 iPad
-    function broadcastState(resetSlots = false) {
-      if (!isTeacherHost) return;
-      const payload = {
-        type: 'SYNC_STATE',
-        chestIndex: currentChestIndex,
-        gameState: gameState,
-        resetSlots: resetSlots
-      };
-      teacherConns.forEach(c => {
-        if (c.open) c.send(payload);
-      });
-    }
-
-    function broadcastLeaderboard() {
-      if (!isTeacherHost) return;
-      const payload = {
-        type: 'UPDATE_LEADERBOARD',
-        teamsData: teamsData
-      };
-      teacherConns.forEach(c => {
-        if (c.open) c.send(payload);
-      });
-    }
-
-    function handleStudentSolved(msg) {
-      chestSubmittedTeams++;
-      const points = Math.max(100 - (chestSubmittedTeams - 1) * 10, 50);
-      const team = teamsData.find(t => t.name === msg.groupName);
-      if (team) team.score += points;
-      renderLeaderboard();
-      broadcastLeaderboard();
-    }
-
-    // 5. 音效合成
+    // 4. 音效系統 (免載入外部音頻，iPad 原生合成)
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep(freq, type, duration) {
       try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = type;
         osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -437,7 +417,7 @@
       } catch(e){}
     }
 
-    function soundClick() { playBeep(600, 'sine', 0.08); }
+    function soundClick() { playBeep(650, 'sine', 0.08); }
     function soundError() { playBeep(180, 'sawtooth', 0.25); }
     function soundSuccess() {
       [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
@@ -445,7 +425,7 @@
       });
     }
 
-    // 6. 視圖更新邏輯
+    // 5. 畫面渲染與流轉
     function updateView() {
       const chest = CHEST_DATABASE[currentChestIndex];
       document.getElementById('playChestTitle').innerText = `【寶箱 ${chest.id}】${chest.title}`;
@@ -462,6 +442,13 @@
 
       document.getElementById('viewLogin').classList.add('hidden');
 
+      if (isSolvedCurrentChest) {
+        document.getElementById('viewPlay').classList.add('hidden');
+        document.getElementById('viewWaiting').classList.add('hidden');
+        document.getElementById('viewSuccess').classList.remove('hidden');
+        return;
+      }
+
       if (gameState === "waiting") {
         document.getElementById('viewPlay').classList.add('hidden');
         document.getElementById('viewSuccess').classList.add('hidden');
@@ -475,15 +462,35 @@
         renderSlots();
       }
       renderLeaderboard();
+      updateTeacherSolvedText();
+    }
+
+    function displayPersonalRank(rank, points) {
+      isSolvedCurrentChest = true;
+      document.getElementById('viewPlay').classList.add('hidden');
+      document.getElementById('viewSuccess').classList.remove('hidden');
+
+      let medal = "🎉";
+      if (rank === 1) medal = "👑 全班第 1 名通關！";
+      else if (rank === 2) medal = "🥈 全班第 2 名通關！";
+      else if (rank === 3) medal = "🥉 全班第 3 名通關！";
+      else medal = `⭐ 全班第 ${rank} 名通關！`;
+
+      document.getElementById('successRankTitle').innerText = medal;
+      document.getElementById('rankFeedbackText').innerHTML = `獲得 <strong class="text-emerald-600 text-lg">+${points}</strong> 積分！個人總分已刷新`;
+    }
+
+    function updateTeacherSolvedText() {
+      const el = document.getElementById('chestSolvedCounter');
+      if (el) el.innerText = `本題通關：${chestSolvedCount} 組`;
     }
 
     function joinGame() {
       currentGroupName = document.getElementById('groupSelect').value;
+      const myTeam = teamsData.find(item => item.name === currentGroupName);
+      if (myTeam) groupScore = myTeam.score;
       isJoined = true;
       soundClick();
-      if (studentConn && studentConn.open) {
-        studentConn.send({ type: 'REGISTER', groupName: currentGroupName });
-      }
       updateView();
     }
 
@@ -571,14 +578,19 @@
         soundSuccess();
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
 
-        // 雲端回傳開箱成功
-        if (studentConn && studentConn.open) {
-          studentConn.send({ type: 'CHEST_SOLVED', groupName: currentGroupName });
-        }
-
-        document.getElementById('viewPlay').classList.add('hidden');
-        document.getElementById('viewSuccess').classList.remove('hidden');
         document.getElementById('successPasswordReview').innerText = correctValues.join(" > ");
+
+        // 發佈 MQTT 開箱消息至雲端總線
+        if (mqttClient && mqttClient.connected) {
+          mqttClient.publish(TOPIC_SOLVE, JSON.stringify({
+            groupName: currentGroupName,
+            chestIndex: currentChestIndex
+          }));
+        } else {
+          // 本機離線模式備援
+          chestSolvedCount++;
+          displayPersonalRank(chestSolvedCount, 100);
+        }
       }
     }
 
@@ -597,70 +609,125 @@
       document.getElementById('feedbackAlert').classList.add('hidden');
     }
 
+    // 6. 排行榜視窗與渲染
+    function toggleLeaderboardModal() {
+      document.getElementById('leaderboardModal').classList.toggle('hidden');
+    }
+
+    function renderLeaderboard() {
+      // 依分數由大至小排序
+      const sorted = [...teamsData].sort((a, b) => b.score - a.score);
+
+      const html = sorted.map((t, idx) => {
+        let medal = `<span class="w-5 text-center font-bold text-slate-400">${idx + 1}</span>`;
+        if (idx === 0) medal = `<span class="w-5 text-center text-amber-500 font-black">🥇</span>`;
+        else if (idx === 1) medal = `<span class="w-5 text-center text-slate-400 font-black">🥈</span>`;
+        else if (idx === 2) medal = `<span class="w-5 text-center text-amber-700 font-black">🥉</span>`;
+
+        const isMe = t.name === currentGroupName;
+        const bg = isMe ? "bg-amber-50 border-amber-300 ring-1 ring-amber-300" : "bg-slate-50 border-slate-200";
+
+        return `
+          <div class="flex justify-between items-center px-3 py-2 rounded-xl text-xs border ${bg}">
+            <div class="flex items-center gap-2">
+              ${medal}
+              <span class="font-bold ${isMe ? 'text-amber-900 font-black' : 'text-slate-800'}">${t.name} ${isMe ? '(本組)' : ''}</span>
+            </div>
+            <span class="font-mono font-black text-amber-600">${t.score} 分</span>
+          </div>
+        `;
+      }).join('');
+
+      const pubList = document.getElementById('publicLeaderboardList');
+      if (pubList) pubList.innerHTML = html;
+
+      const teachList = document.getElementById('teacherLeaderboardList');
+      if (teachList) teachList.innerHTML = html;
+    }
+
+    // 7. 教師控制台 (廣播核心)
+    function requestTeacherAccess() {
+      const pin = prompt("請輸入教師管理員 4 位密碼：");
+      if (pin === TEACHER_PIN) {
+        toggleTeacherModal();
+      } else if (pin !== null) {
+        alert("密碼錯誤，無法進入教師主控台！");
+      }
+    }
+
     function toggleTeacherModal() {
       document.getElementById('teacherModal').classList.toggle('hidden');
     }
 
-    // 教師端切換：看黑板 / 開始算
-    function setGameState(state) {
+    function broadcastControl(resetSlots = false) {
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(TOPIC_CONTROL, JSON.stringify({
+          type: 'SYNC_STATE',
+          chestIndex: currentChestIndex,
+          gameState: gameState,
+          chestSolvedCount: chestSolvedCount,
+          resetSlots: resetSlots
+        }));
+      }
+    }
+
+    function teacherSetState(state) {
       gameState = state;
       document.getElementById('gameStateDisplay').innerText = state === "waiting" ? "看黑板鎖定" : "解密進行中";
       document.getElementById('gameStateDisplay').className = state === "waiting" ? "text-lg font-black text-amber-600 block" : "text-lg font-black text-emerald-600 block";
       updateView();
-      broadcastState(false);
+      broadcastControl(false);
     }
 
-    // 教師端切換：下一題
     function teacherNextChest() {
       if (currentChestIndex < CHEST_DATABASE.length - 1) {
         currentChestIndex++;
-        chestSubmittedTeams = 0;
+        chestSolvedCount = 0;
         currentSlots = ["", "", "", ""];
         activeSlotIndex = 0;
+        isSolvedCurrentChest = false;
         gameState = "playing";
         updateView();
-        broadcastState(true); // 廣播並讓全體 iPad 換題兼清合格子
+        broadcastControl(true);
       }
     }
 
-    // 教師端切換：上一題
     function teacherPrevChest() {
       if (currentChestIndex > 0) {
         currentChestIndex--;
-        chestSubmittedTeams = 0;
+        chestSolvedCount = 0;
         currentSlots = ["", "", "", ""];
         activeSlotIndex = 0;
+        isSolvedCurrentChest = false;
         gameState = "playing";
         updateView();
-        broadcastState(true);
+        broadcastControl(true);
       }
     }
 
-    function renderLeaderboard() {
-      const list = document.getElementById('leaderboardList');
-      list.innerHTML = teamsData.map(t => `
-        <div class="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-xl text-xs border border-slate-200">
-          <span class="font-bold text-slate-700">${t.name}</span>
-          <span class="font-mono font-black text-amber-600">${t.score} 分</span>
-        </div>
-      `).join('');
-    }
-
-    function resetAllGame() {
+    function teacherResetGame() {
+      if (!confirm("確定要重置全班所有小組的分數與進度嗎？")) return;
       currentChestIndex = 0;
-      chestSubmittedTeams = 0;
+      chestSolvedCount = 0;
       teamsData.forEach(t => t.score = 0);
       currentSlots = ["", "", "", ""];
       activeSlotIndex = 0;
+      isSolvedCurrentChest = false;
       gameState = "playing";
       updateView();
-      broadcastState(true);
-      broadcastLeaderboard();
+      broadcastControl(true);
+
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(TOPIC_SCORES, JSON.stringify({
+          type: 'FULL_SYNC',
+          teamsData: teamsData
+        }));
+      }
       toggleTeacherModal();
     }
 
-    // 啟動連線與畫面
-    initStudentPeer();
+    // 啟動連線與畫面初始化
+    initMQTT();
     updateView();
   </script>
 </body>

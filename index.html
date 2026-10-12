@@ -189,7 +189,7 @@
 
   <!-- 底部版權 -->
   <footer class="text-center text-xs text-slate-400 py-2.5 border-t border-slate-200">
-    初中數學科 • 公式代入法尋寶大冒險 2.0 (MQTT 雲端總線版 • 防休眠加固)
+    初中數學科 • 公式代入法尋寶大冒險 2.0 (MQTT 雲端總線版 • 8組連線監控)
   </footer>
 
   <!-- 學生端/全班共用：即時排行榜 Modal -->
@@ -210,9 +210,9 @@
 
   <!-- 教師控制台視窗 (PIN 碼 0523 保護) -->
   <div id="teacherModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 flex flex-col justify-between">
-      <div>
-        <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 flex flex-col justify-between max-h-[90vh]">
+      <div class="overflow-y-auto pr-1">
+        <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
           <div class="flex items-center gap-2 text-indigo-900">
             <i class="fa-solid fa-chalkboard-user text-xl text-amber-500"></i>
             <div>
@@ -223,8 +223,24 @@
           <button onclick="toggleTeacherModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
         </div>
 
+        <!-- 🌟 新增：iPad 即時在線監控儀表板 -->
+        <div class="bg-slate-900 text-white p-3.5 rounded-2xl mb-4 shadow-inner">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-wifi text-emerald-400"></i> iPad 在線連線監控
+            </span>
+            <span id="onlineCountBadge" class="text-xs font-black bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
+              已連線：0 / 8 組
+            </span>
+          </div>
+          <!-- 8 組即時在線燈號網格 -->
+          <div id="deviceGrid" class="grid grid-cols-4 gap-1.5 text-center text-[11px] font-mono font-bold">
+            <!-- 動態渲染 8 組連線狀態 -->
+          </div>
+        </div>
+
         <!-- 控題與鎖定按鈕 -->
-        <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="grid grid-cols-2 gap-3 mb-4">
           <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
             <span class="text-[10px] text-slate-400 block font-bold mb-1">題目控制 (全班同步翻頁)</span>
             <span id="currentChestDisplay" class="text-lg font-black text-indigo-900 block">第 1 題 / 共 7 題</span>
@@ -245,15 +261,15 @@
 
         <!-- 各組即時排行榜 -->
         <div>
-          <div class="flex justify-between items-center mb-2">
+          <div class="flex justify-between items-center mb-1.5">
             <h4 class="text-xs font-black text-slate-500 uppercase tracking-wider">小組即時總分榜 (雲端同步)</h4>
             <span id="chestSolvedCounter" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">本題通關：0 組</span>
           </div>
-          <div id="teacherLeaderboardList" class="space-y-1 max-h-40 overflow-y-auto pr-1"></div>
+          <div id="teacherLeaderboardList" class="space-y-1 max-h-32 overflow-y-auto pr-1"></div>
         </div>
       </div>
 
-      <div class="pt-4 border-t border-slate-200 flex justify-between items-center text-xs mt-4">
+      <div class="pt-3 border-t border-slate-200 flex justify-between items-center text-xs mt-3">
         <span class="text-slate-400 font-bold">管理 PIN: 0523</span>
         <button onclick="teacherResetGame()" class="text-rose-600 hover:underline font-bold">重置全部資料</button>
       </div>
@@ -292,10 +308,14 @@
       { name: "第 7 組", score: 0 }, { name: "第 8 組", score: 0 }
     ];
 
+    // 🌟 在線設備心跳紀錄 (記錄最後一次收到訊號的時間戳)
+    let onlineDevices = {};
+
     // 3. MQTT 雲端總線架構 (學校 Wi-Fi 穿透保證)
-    const TOPIC_CONTROL = "twgh/math/treasure_v2/control";
-    const TOPIC_SOLVE   = "twgh/math/treasure_v2/solve";
-    const TOPIC_SCORES  = "twgh/math/treasure_v2/scores";
+    const TOPIC_CONTROL   = "twgh/math/treasure_v2/control";
+    const TOPIC_SOLVE     = "twgh/math/treasure_v2/solve";
+    const TOPIC_SCORES    = "twgh/math/treasure_v2/scores";
+    const TOPIC_HEARTBEAT = "twgh/math/treasure_v2/heartbeat";
 
     let mqttClient = null;
     const BROKERS = [
@@ -318,7 +338,7 @@
 
         mqttClient.on('connect', () => {
           setSyncBadge("🟢 雲端同步正常", "bg-emerald-800 text-emerald-200 border-emerald-600");
-          mqttClient.subscribe([TOPIC_CONTROL, TOPIC_SOLVE, TOPIC_SCORES], (err) => {
+          mqttClient.subscribe([TOPIC_CONTROL, TOPIC_SOLVE, TOPIC_SCORES, TOPIC_HEARTBEAT], (err) => {
             if (!err) console.log("Subscribed to MQTT topics successfully");
           });
         });
@@ -350,7 +370,13 @@
 
     // 處理收到的廣播封包
     function handleIncomingMessage(topic, data) {
-      if (topic === TOPIC_CONTROL) {
+      if (topic === TOPIC_HEARTBEAT) {
+        // 收到某組 iPad 的在線心跳
+        if (data.groupName) {
+          onlineDevices[data.groupName] = Date.now();
+          renderDeviceGrid();
+        }
+      } else if (topic === TOPIC_CONTROL) {
         if (data.type === 'SYNC_STATE') {
           currentChestIndex = data.chestIndex;
           gameState = data.gameState;
@@ -385,6 +411,59 @@
           if (myTeam) groupScore = myTeam.score;
           renderLeaderboard();
         }
+      }
+    }
+
+    // 學生端心跳發送循環 (每 4 秒廣播一次自己還在線上)
+    setInterval(() => {
+      if (isJoined && mqttClient && mqttClient.connected) {
+        mqttClient.publish(TOPIC_HEARTBEAT, JSON.stringify({
+          groupName: currentGroupName,
+          time: Date.now()
+        }));
+      }
+    }, 4000);
+
+    // 每 2 秒檢查一次設備是否逾時 (超過 10 秒未發心跳視為離線)
+    setInterval(renderDeviceGrid, 2000);
+
+    function renderDeviceGrid() {
+      const grid = document.getElementById('deviceGrid');
+      const counter = document.getElementById('onlineCountBadge');
+      if (!grid) return;
+
+      const now = Date.now();
+      let onlineCount = 0;
+
+      let html = "";
+      for (let i = 1; i <= 8; i++) {
+        const gName = `第 ${i} 組`;
+        const lastSeen = onlineDevices[gName] || 0;
+        const isOnline = (now - lastSeen) < 10000; // 10秒內有訊號算在線
+
+        if (isOnline) onlineCount++;
+
+        if (isOnline) {
+          html += `
+            <div class="bg-emerald-950/80 border border-emerald-500/80 text-emerald-300 py-1.5 px-1 rounded-xl shadow-sm">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>${gName}
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="bg-slate-800/60 border border-slate-700/60 text-slate-500 py-1.5 px-1 rounded-xl">
+              <span class="inline-block w-2 h-2 rounded-full bg-slate-600 mr-1"></span>${gName}
+            </div>
+          `;
+        }
+      }
+
+      grid.innerHTML = html;
+      if (counter) {
+        counter.innerText = `已連線：${onlineCount} / 8 組`;
+        counter.className = onlineCount >= 8 
+          ? "text-xs font-black bg-emerald-500/30 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-400"
+          : "text-xs font-black bg-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/40";
       }
     }
 
@@ -536,6 +615,15 @@
       isJoined = true;
       soundClick();
       requestWakeLock(); // 啟用螢幕防熄滅鎖
+
+      // 立即發送一次心跳
+      if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(TOPIC_HEARTBEAT, JSON.stringify({
+          groupName: currentGroupName,
+          time: Date.now()
+        }));
+      }
+
       updateView();
     }
 
@@ -723,6 +811,7 @@
 
     function toggleTeacherModal() {
       document.getElementById('teacherModal').classList.toggle('hidden');
+      renderDeviceGrid();
     }
 
     function broadcastControl(resetSlots = false) {

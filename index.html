@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>公式與代入法：尋寶大冒險 2.0 競賽系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Canvas Confetti 彩帶特效 -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    @keyframes bounce-chest {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .animate-chest { animation: bounce-chest 1.2s infinite ease-in-out; }
+    /* 移除 iOS 點擊灰色高亮陰影 */
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between select-none">
+
+  <!-- 頂部導航欄 -->
+  <header class="bg-indigo-900 text-white px-6 py-3.5 shadow-md flex justify-between items-center shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="bg-amber-400 text-indigo-950 p-2 rounded-xl text-lg font-black flex items-center justify-center w-10 h-10 shadow-sm">
+        <i class="fa-solid fa-gem"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-black tracking-tight leading-tight">公式與代入法：尋寶大冒險 2.0</h1>
+        <p class="text-xs text-indigo-200">iPad 即時課堂小組競賽系統</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="roleBadge" class="bg-indigo-800 text-xs px-3 py-1 rounded-full font-bold border border-indigo-700">學生端</span>
+      <button onclick="toggleTeacherModal()" class="text-xs bg-indigo-800/90 hover:bg-indigo-700 active:bg-indigo-950 text-white px-3 py-1.5 rounded-lg border border-indigo-600 transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-solid fa-sliders"></i>
+        <span>教師主控台</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主畫面區域 -->
+  <main class="flex-1 p-4 max-w-4xl w-full mx-auto flex flex-col justify-center items-center">
+
+    <!-- 階段 1：組別登入畫面 -->
+    <div id="viewLogin" class="bg-white p-8 rounded-3xl shadow-xl border-2 border-slate-200 text-center max-w-md w-full">
+      <div class="w-20 h-20 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-4 shadow-inner">
+        <i class="fa-solid fa-users"></i>
+      </div>
+      <h2 class="text-2xl font-black text-slate-900 mb-1">小組參戰登記</h2>
+      <p class="text-xs text-slate-500 mb-6">請選擇您小組的組號以開啟 iPad</p>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 text-left mb-1.5">選擇組別：</label>
+          <select id="groupSelect" class="w-full text-base font-bold p-3.5 bg-slate-50 border-2 border-slate-300 rounded-2xl focus:border-indigo-600 focus:outline-none cursor-pointer">
+            <option value="第 1 組">第 1 組</option>
+            <option value="第 2 組">第 2 組</option>
+            <option value="第 3 組">第 3 組</option>
+            <option value="第 4 組">第 4 組</option>
+            <option value="第 5 組">第 5 組</option>
+            <option value="第 6 組">第 6 組</option>
+            <option value="第 7 組">第 7 組</option>
+            <option value="第 8 組">第 8 組</option>
+          </select>
+        </div>
+        <button onclick="joinGame()" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-lg py-3.5 rounded-2xl shadow-lg shadow-indigo-600/30 transition transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
+          <span>進入尋寶任務</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 階段 2：等待教師發布數值畫面 (鎖定模式) -->
+    <div id="viewWaiting" class="hidden bg-white p-8 rounded-3xl shadow-xl border-2 border-slate-200 text-center max-w-md w-full">
+      <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 animate-pulse">
+        <i class="fa-solid fa-chalkboard-user"></i>
+      </div>
+      <span id="waitingGroupName" class="px-3 py-1 bg-indigo-100 text-indigo-900 rounded-full text-xs font-black inline-block mb-3">第 1 組</span>
+      <h2 class="text-2xl font-black text-slate-900 mb-2">請抬頭看黑板！</h2>
+      <p class="text-sm text-slate-600 leading-relaxed mb-6">
+        老師正在公佈當前寶箱的<strong>【變量數值】</strong>。<br>
+        請全組同學在工作紙上抄好數值並開始手算。
+      </p>
+      <div class="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-xs text-amber-900 font-bold flex items-center justify-center gap-2">
+        <i class="fa-solid fa-lock text-amber-600"></i>
+        <span>待老師點擊解鎖後，鍵盤將自動開啟！</span>
+      </div>
+    </div>
+
+    <!-- 階段 3：iPad 密碼輸入與解鎖挑戰畫面 -->
+    <div id="viewPlay" class="hidden w-full max-w-lg flex flex-col gap-4">
+      <!-- 關卡資訊條 -->
+      <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
+        <div>
+          <span id="playGroupName" class="text-xs font-bold text-indigo-600 block">第 1 組 • 尋寶中</span>
+          <h2 id="playChestTitle" class="text-lg font-black text-slate-900">【寶箱 1】首戰即見負數</h2>
+        </div>
+        <div class="text-right">
+          <span class="text-xs text-slate-400 block font-medium">小組累積積分</span>
+          <span id="groupScore" class="text-2xl font-black text-amber-600 font-mono leading-none">0 分</span>
+        </div>
+      </div>
+
+      <!-- 密碼輸入卡片 -->
+      <div class="bg-white p-5 sm:p-6 rounded-3xl shadow-xl border-2 border-slate-200 text-center">
+        <span class="text-xs font-bold text-slate-500 block mb-2">請依序輸入四位組員由大至小排列之數值（可點擊格子切換）：</span>
+        
+        <!-- 動態格式化預覽條 (四格支援直接點選) -->
+        <div class="bg-slate-950 text-white py-3.5 px-4 rounded-2xl mb-4 shadow-inner font-mono text-xl sm:text-2xl tracking-widest flex items-center justify-center gap-1 sm:gap-2">
+          <span class="text-slate-400 font-bold">(</span>
+          <span id="slot0" onclick="selectSlot(0)" class="cursor-pointer px-2 py-0.5 rounded transition">____</span>
+          <span class="text-slate-500 font-bold">&gt;</span>
+          <span id="slot1" onclick="selectSlot(1)" class="cursor-pointer px-2 py-0.5 rounded transition">____</span>
+          <span class="text-slate-500 font-bold">&gt;</span>
+          <span id="slot2" onclick="selectSlot(2)" class="cursor-pointer px-2 py-0.5 rounded transition">____</span>
+          <span class="text-slate-500 font-bold">&gt;</span>
+          <span id="slot3" onclick="selectSlot(3)" class="cursor-pointer px-2 py-0.5 rounded transition">____</span>
+          <span class="text-slate-400 font-bold">)</span>
+        </div>
+
+        <!-- 虛擬數字鍵盤 -->
+        <div class="grid grid-cols-4 gap-2 sm:gap-2.5 max-w-sm mx-auto mb-3">
+          <button onclick="pressKey('1')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">1</button>
+          <button onclick="pressKey('2')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">2</button>
+          <button onclick="pressKey('3')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">3</button>
+          <button onclick="pressKey('-')" class="bg-rose-100 hover:bg-rose-200 active:bg-rose-300 text-rose-700 text-2xl font-black py-3.5 rounded-2xl shadow-sm border border-rose-200 active:scale-95 transition cursor-pointer">-</button>
+
+          <button onclick="pressKey('4')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">4</button>
+          <button onclick="pressKey('5')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">5</button>
+          <button onclick="pressKey('6')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">6</button>
+          <button onclick="pressNextSlot()" class="bg-amber-100 hover:bg-amber-200 active:bg-amber-300 text-amber-900 text-xs font-black py-3.5 rounded-2xl shadow-sm border border-amber-200 active:scale-95 transition flex flex-col items-center justify-center cursor-pointer">
+            <span class="text-base">&gt;</span>
+            <span class="leading-none text-[10px]">下一格</span>
+          </button>
+
+          <button onclick="pressKey('7')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">7</button>
+          <button onclick="pressKey('8')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">8</button>
+          <button onclick="pressKey('9')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition cursor-pointer">9</button>
+          <button onclick="clearCurrentSlot()" class="bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 text-sm font-bold py-3.5 rounded-2xl shadow-sm active:scale-95 transition flex items-center justify-center cursor-pointer">
+            <i class="fa-solid fa-delete-left mr-1"></i> 倒退
+          </button>
+
+          <button onclick="pressKey('0')" class="bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-900 text-2xl font-bold py-3.5 rounded-2xl shadow-sm border border-slate-200 active:scale-95 transition col-span-2 cursor-pointer">0</button>
+          <button onclick="clearAll()" class="bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-600 text-xs font-bold py-3.5 rounded-2xl shadow-sm active:scale-95 transition cursor-pointer">全部清除</button>
+          <button onclick="submitPassword()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-base font-black py-3.5 rounded-2xl shadow-lg shadow-emerald-600/30 active:scale-95 transition flex items-center justify-center gap-1 cursor-pointer">
+            <span>開箱</span>
+            <i class="fa-solid fa-key text-sm"></i>
+          </button>
+        </div>
+
+        <!-- 錯誤回饋訊息框 -->
+        <div id="feedbackAlert" class="hidden p-3 rounded-2xl text-xs font-bold max-w-sm mx-auto transition-all text-left"></div>
+      </div>
+    </div>
+
+    <!-- 階段 4：開箱成功畫面 -->
+    <div id="viewSuccess" class="hidden bg-white p-8 rounded-3xl shadow-2xl border-2 border-emerald-400 text-center max-w-md w-full">
+      <div class="w-24 h-24 bg-amber-100 text-amber-500 rounded-3xl flex items-center justify-center text-5xl mx-auto mb-4 animate-chest shadow-inner">
+        <i class="fa-solid fa-box-open"></i>
+      </div>
+      <span class="px-3.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-black inline-block mb-2">🎉 恭喜成功解開寶箱！</span>
+      <h2 class="text-3xl font-black text-slate-900 mb-1">寶箱已開啟！</h2>
+      <p id="rankFeedbackText" class="text-base text-slate-600 mb-6 font-bold">全班第 1 名完成！獲得 +100 積分</p>
+      
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left text-xs space-y-2 mb-6">
+        <div class="font-bold text-slate-500">本寶箱標準密碼確認：</div>
+        <div id="successPasswordReview" class="text-lg font-mono font-black text-slate-800 text-center py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+          11 &gt; 9 &gt; -5 &gt; -10
+        </div>
+      </div>
+
+      <div class="text-xs text-slate-400 font-medium">請在工作紙上記錄分數，靜候老師切換下一關！</div>
+    </div>
+
+  </main>
+
+  <!-- 底部說明 -->
+  <footer class="text-center text-xs text-slate-400 py-3 border-t border-slate-200 shrink-0">
+    初中數學科 • 有向數與公式代入法課堂競賽系統
+  </footer>
+
+  <!-- 教師控制台彈出視窗 (Modal) -->
+  <div id="teacherModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col justify-between">
+      <div>
+        <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+          <div class="flex items-center gap-2 text-indigo-900">
+            <i class="fa-solid fa-sliders text-xl"></i>
+            <h3 class="text-lg font-black">教師主控台（進度管理）</h3>
+          </div>
+          <button onclick="toggleTeacherModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">&times;</button>
+        </div>
+
+        <!-- 題號控制 -->
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+            <span class="text-xs text-slate-400 block mb-0.5">當前寶箱進度</span>
+            <span id="currentChestDisplay" class="text-lg font-black text-indigo-900 block">第 1 題 / 共 7 題</span>
+            <div class="mt-2.5 flex gap-1.5">
+              <button onclick="teacherPrevChest()" class="flex-1 bg-white border border-slate-300 active:bg-slate-100 text-xs py-1.5 rounded-xl font-bold cursor-pointer">上一題</button>
+              <button onclick="teacherNextChest()" class="flex-1 bg-indigo-600 active:bg-indigo-700 text-white text-xs py-1.5 rounded-xl font-bold cursor-pointer">下一題</button>
+            </div>
+          </div>
+          <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+            <span class="text-xs text-slate-400 block mb-0.5">課堂節奏控制</span>
+            <span id="gameStateDisplay" class="text-lg font-black text-emerald-600 block">解密進行中</span>
+            <div class="mt-2.5 flex gap-1.5">
+              <button onclick="setGameState('waiting')" class="flex-1 bg-amber-500 active:bg-amber-600 text-white text-xs py-1.5 rounded-xl font-bold cursor-pointer">鎖定黑板</button>
+              <button onclick="setGameState('playing')" class="flex-1 bg-emerald-600 active:bg-emerald-700 text-white text-xs py-1.5 rounded-xl font-bold cursor-pointer">開放作答</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 各組通關排名監控 -->
+        <div>
+          <h4 class="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">小組即時狀態與排行榜</h4>
+          <div id="leaderboardList" class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <!-- 動態插入 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-slate-200 flex justify-between items-center text-xs text-slate-400">
+        <span>切換題號時全班 iPad 自動重置</span>
+        <button onclick="resetAllGame()" class="text-rose-600 hover:underline font-bold cursor-pointer">重置競賽</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 系統核心邏輯 JavaScript -->
+  <script>
+    // -------------------------------------------------------------
+    // 1. 7 大寶箱標準解答資料庫 (已置於最頂部，防止 ReferenceError)
+    // -------------------------------------------------------------
+    const CHEST_DATABASE = [
+      {
+        id: 1,
+        title: "首戰即見負數",
+        answers: { A: 11, B: -10, C: 9, D: -5 },
+        correctOrder: [11, 9, -5, -10],
+        sortedStudents: ["A", "C", "D", "B"]
+      },
+      {
+        id: 2,
+        title: "負負得正陷阱",
+        answers: { A: 2, B: 22, C: -1, D: 8 },
+        correctOrder: [22, 8, 2, -1],
+        sortedStudents: ["B", "D", "A", "C"]
+      },
+      {
+        id: 3,
+        title: "引入小型平方",
+        answers: { A: 16, B: -4, C: 4, D: -12 },
+        correctOrder: [16, 4, -4, -12],
+        sortedStudents: ["A", "C", "B", "D"]
+      },
+      {
+        id: 4,
+        title: "負數平方挑戰",
+        answers: { A: 20, B: -12, C: 10, D: -15 },
+        correctOrder: [20, 10, -12, -15],
+        sortedStudents: ["A", "C", "B", "D"]
+      },
+      {
+        id: 5,
+        title: "友善除法整除",
+        answers: { A: 11, B: 3, C: -1, D: 11 },
+        correctOrder: [11, 11, 3, -1],
+        sortedStudents: ["A", "D", "B", "C"]
+      },
+      {
+        id: 6,
+        title: "乘除複合結構",
+        answers: { A: 15, B: -3, C: 7, D: 12 },
+        correctOrder: [15, 12, 7, -3],
+        sortedStudents: ["A", "D", "C", "B"]
+      },
+      {
+        id: 7,
+        title: "終極全能大融合",
+        answers: { A: 3, B: 18, C: 0, D: 6 },
+        correctOrder: [18, 6, 3, 0],
+        sortedStudents: ["B", "D", "A", "C"]
+      }
+    ];
+
+    // -------------------------------------------------------------
+    // 2. 系統狀態變數
+    // -------------------------------------------------------------
+    let isJoined = false;           // 是否已點擊進入遊戲
+    let currentChestIndex = 0;      // 當前寶箱 0 ~ 6
+    let currentGroupName = "第 1 組";
+    let groupScore = 0;
+    let gameState = "playing";      // "waiting" (鎖定) 或 "playing" (作答)
+    let currentSlots = ["", "", "", ""];
+    let activeSlotIndex = 0;        // 當前輸入焦點 0 ~ 3
+    let chestSubmittedTeams = 0;    // 本題通關計數
+
+    // 模擬各組數據
+    let teamsData = [
+      { name: "第 1 組", score: 0, status: "準備中" },
+      { name: "第 2 組", score: 0, status: "準備中" },
+      { name: "第 3 組", score: 0, status: "準備中" },
+      { name: "第 4 組", score: 0, status: "準備中" },
+      { name: "第 5 組", score: 0, status: "準備中" },
+      { name: "第 6 組", score: 0, status: "準備中" }
+    ];
+
+    // 角色中文名對照
+    const roleNames = {
+      A: "學生 A（先鋒挑戰者 • 橙）",
+      B: "學生 B（核心探索者一 • 藍）",
+      C: "學生 C（核心探索者二 • 紫）",
+      D: "學生 D（基礎領航員 • 綠）"
+    };
+
+    // -------------------------------------------------------------
+    // 3. 原生 Web Audio 免費即時音效 (無需任何外鏈音頻檔)
+    // -------------------------------------------------------------
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'click') {
+        osc.frequency.setValueAtTime(600, now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } else if (type === 'success') {
+        // 勝利三和弦
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+          const chordOsc = audioCtx.createOscillator();
+          const chordGain = audioCtx.createGain();
+          chordOsc.connect(chordGain);
+          chordGain.connect(audioCtx.destination);
+          chordOsc.frequency.setValueAtTime(freq, now + i * 0.1);
+          chordGain.gain.setValueAtTime(0.12, now + i * 0.1);
+          chordGain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.4);
+          chordOsc.start(now + i * 0.1);
+          chordOsc.stop(now + i * 0.1 + 0.4);
+        });
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 4. 視圖更新核心
+    // -------------------------------------------------------------
+    function updateView() {
+      const chest = CHEST_DATABASE[currentChestIndex];
+      document.getElementById('playChestTitle').innerText = `【寶箱 ${chest.id}】${chest.title}`;
+      document.getElementById('currentChestDisplay').innerText = `第 ${chest.id} 題 / 共 7 題`;
+      document.getElementById('groupScore').innerText = `${groupScore} 分`;
+
+      if (!isJoined) {
+        // 未登入：只顯現登入卡片
+        document.getElementById('viewLogin').classList.remove('hidden');
+        document.getElementById('viewWaiting').classList.add('hidden');
+        document.getElementById('viewPlay').classList.add('hidden');
+        document.getElementById('viewSuccess').classList.add('hidden');
+        return;
+      }
+
+      // 已登入：依遊戲狀態切換
+      document.getElementById('viewLogin').classList.add('hidden');
+
+      if (gameState === "waiting") {
+        document.getElementById('viewPlay').classList.add('hidden');
+        document.getElementById('viewSuccess').classList.add('hidden');
+        document.getElementById('viewWaiting').classList.remove('hidden');
+        document.getElementById('waitingGroupName').innerText = currentGroupName;
+      } else if (gameState === "playing") {
+        document.getElementById('viewWaiting').classList.add('hidden');
+        document.getElementById('viewSuccess').classList.add('hidden');
+        document.getElementById('viewPlay').classList.remove('hidden');
+        document.getElementById('playGroupName').innerText = `${currentGroupName} • 尋寶中`;
+        renderSlots();
+      }
+      renderLeaderboard();
+    }
+
+    // 學生端登入
+    function joinGame() {
+      playSound('click');
+      currentGroupName = document.getElementById('groupSelect').value;
+      isJoined = true;
+      updateView();
+    }
+
+    // 點選格子
+    function selectSlot(index) {
+      playSound('click');
+      activeSlotIndex = index;
+      renderSlots();
+    }
+
+    // 鍵盤輸入
+    function pressKey(char) {
+      playSound('click');
+      if (activeSlotIndex > 3) return;
+      if (char === '-' && currentSlots[activeSlotIndex].includes('-')) return; // 防重複負號
+      currentSlots[activeSlotIndex] += char;
+      renderSlots();
+    }
+
+    function pressNextSlot() {
+      playSound('click');
+      if (activeSlotIndex < 3) {
+        activeSlotIndex++;
+        renderSlots();
+      }
+    }
+
+    function clearCurrentSlot() {
+      playSound('click');
+      if (currentSlots[activeSlotIndex].length > 0) {
+        currentSlots[activeSlotIndex] = currentSlots[activeSlotIndex].slice(0, -1);
+      } else if (activeSlotIndex > 0) {
+        activeSlotIndex--;
+      }
+      renderSlots();
+    }
+
+    function clearAll() {
+      playSound('click');
+      currentSlots = ["", "", "", ""];
+      activeSlotIndex = 0;
+      renderSlots();
+      hideAlert();
+    }
+
+    // 渲染四格格式化外觀
+    function renderSlots() {
+      const colors = ["text-amber-400", "text-blue-400", "text-purple-400", "text-emerald-400"];
+      for (let i = 0; i < 4; i++) {
+        const el = document.getElementById(`slot${i}`);
+        const val = currentSlots[i];
+        el.innerText = val !== "" ? val : "____";
+        
+        if (i === activeSlotIndex) {
+          el.className = `${colors[i]} font-black underline decoration-2 underline-offset-4 ring-2 ring-amber-400/80 bg-slate-900 rounded px-2 py-0.5 cursor-pointer shadow`;
+        } else {
+          el.className = `text-slate-300 font-bold hover:text-white px-2 py-0.5 cursor-pointer`;
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 5. 密碼驗證與智慧除錯診斷
+    // -------------------------------------------------------------
+    function submitPassword() {
+      const chest = CHEST_DATABASE[currentChestIndex];
+
+      // 檢查是否填滿四格
+      for (let i = 0; i < 4; i++) {
+        if (currentSlots[i] === "" || isNaN(Number(currentSlots[i]))) {
+          playSound('error');
+          showAlert('<i class="fa-solid fa-circle-exclamation mr-1"></i> 請先完整輸入四位同學的數值再開箱！', "warning");
+          return;
+        }
+      }
+
+      const inputValues = currentSlots.map(Number);
+      const correctValues = chest.correctOrder;
+
+      // 比對並診斷是哪位同學算錯
+      let hasError = false;
+      let wrongStudent = null;
+      let wrongSlot = 0;
+
+      for (let i = 0; i < 4; i++) {
+        if (inputValues[i] !== correctValues[i]) {
+          hasError = true;
+          wrongStudent = chest.sortedStudents[i];
+          wrongSlot = i + 1;
+          break;
+        }
+      }
+
+      if (hasError) {
+        playSound('error');
+        showAlert(`
+          <div class="flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-rose-600 text-base mt-0.5 shrink-0"></i>
+            <div>
+              <span class="block font-black text-rose-900">密碼排列有誤！第 ${wrongSlot} 格數值不正確</span>
+              <span class="block text-rose-700 mt-0.5 leading-relaxed">
+                系統診斷：<strong>【${roleNames[wrongStudent]}】</strong>的計算有偏差，請同式夥伴（A 幫 B / C 幫 D）立即啟動互助除錯！
+              </span>
+            </div>
+          </div>
+        `, "error");
+      } else {
+        // 開箱成功！
+        playSound('success');
+        chestSubmittedTeams++;
+        const points = Math.max(100 - (chestSubmittedTeams - 1) * 10, 50); // 100, 90, 80... 最低50分
+        groupScore += points;
+
+        // 噴發彩帶（容錯防護）
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        // 更新團隊模擬數據
+        const team = teamsData.find(t => t.name === currentGroupName);
+        if (team) {
+          team.score = groupScore;
+          team.status = `第 ${chestSubmittedTeams} 名解開`;
+        }
+
+        document.getElementById('viewPlay').classList.add('hidden');
+        document.getElementById('viewSuccess').classList.remove('hidden');
+        document.getElementById('rankFeedbackText').innerText = `全班第 ${chestSubmittedTeams} 組成功解開！本題獲得 +${points} 積分`;
+        document.getElementById('successPasswordReview').innerText = correctValues.join(" > ");
+        renderLeaderboard();
+      }
+    }
+
+    function showAlert(html, type) {
+      const el = document.getElementById('feedbackAlert');
+      el.classList.remove('hidden', 'bg-rose-50', 'text-rose-800', 'border-rose-300', 'bg-amber-50', 'text-amber-900', 'border-amber-300');
+      if (type === "error") {
+        el.classList.add('bg-rose-50', 'border', 'border-rose-300');
+      } else {
+        el.classList.add('bg-amber-50', 'text-amber-900', 'border', 'border-amber-300');
+      }
+      el.innerHTML = html;
+    }
+
+    function hideAlert() {
+      document.getElementById('feedbackAlert').classList.add('hidden');
+    }
+
+    // -------------------------------------------------------------
+    // 6. 教師端主控功能
+    // -------------------------------------------------------------
+    function toggleTeacherModal() {
+      playSound('click');
+      document.getElementById('teacherModal').classList.toggle('hidden');
+    }
+
+    function setGameState(state) {
+      playSound('click');
+      gameState = state;
+      document.getElementById('gameStateDisplay').innerText = state === "waiting" ? "黑板鎖定中" : "解密進行中";
+      document.getElementById('gameStateDisplay').className = state === "waiting" ? "text-lg font-black text-amber-600 block" : "text-lg font-black text-emerald-600 block";
+      updateView();
+    }
+
+    function teacherNextChest() {
+      playSound('click');
+      if (currentChestIndex < CHEST_DATABASE.length - 1) {
+        currentChestIndex++;
+        resetChestState();
+      }
+    }
+
+    function teacherPrevChest() {
+      playSound('click');
+      if (currentChestIndex > 0) {
+        currentChestIndex--;
+        resetChestState();
+      }
+    }
+
+    function resetChestState() {
+      chestSubmittedTeams = 0;
+      currentSlots = ["", "", "", ""];
+      activeSlotIndex = 0;
+      gameState = "playing";
+      updateView();
+    }
+
+    function renderLeaderboard() {
+      const list = document.getElementById('leaderboardList');
+      // 由高至低排序
+      const sorted = [...teamsData].sort((a, b) => b.score - a.score);
+      list.innerHTML = sorted.map((t, idx) => `
+        <div class="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-xs border border-slate-200">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full ${idx === 0 ? 'bg-amber-400 text-slate-900' : 'bg-slate-200 text-slate-600'} font-black text-[10px] flex items-center justify-center">${idx + 1}</span>
+            <span class="font-bold text-slate-700">${t.name}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-slate-400">${t.status}</span>
+            <span class="font-mono font-black text-amber-600">${t.score} 分</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function resetAllGame() {
+      playSound('click');
+      currentChestIndex = 0;
+      chestSubmittedTeams = 0;
+      groupScore = 0;
+      currentSlots = ["", "", "", ""];
+      activeSlotIndex = 0;
+      gameState = "playing";
+      teamsData.forEach(t => { t.score = 0; t.status = "準備中"; });
+      updateView();
+      toggleTeacherModal();
+    }
+
+    // -------------------------------------------------------------
+    // 7. 啟動頁面初始化
+    // -------------------------------------------------------------
+    updateView();
+  </script>
+</body>
+</html>

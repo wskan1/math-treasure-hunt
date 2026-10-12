@@ -117,18 +117,18 @@
       <div class="bg-white p-5 rounded-3xl shadow-xl border-2 border-slate-200 text-center">
         <div class="flex justify-between items-center mb-2 px-1">
           <span class="text-xs font-bold text-slate-400">點擊下方格子可直接指定修改：</span>
-          <span class="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">由大至小排列</span>
+          <span id="orderRuleBadge" class="text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold">由大至小排列</span>
         </div>
 
-        <!-- 四格動態格式化預覽條 -->
-        <div class="bg-slate-900 text-white py-3.5 px-4 rounded-2xl mb-4 shadow-inner font-mono text-xl sm:text-2xl tracking-wider flex items-center justify-center gap-1.5 sm:gap-3">
+        <!-- 四格動態格式化預覽條（符號動態自適應：寶箱 5 顯示 =，其餘顯示 >） -->
+        <div class="bg-slate-900 text-white py-3.5 px-4 rounded-2xl mb-4 shadow-inner font-mono text-xl sm:text-2xl tracking-wider flex items-center justify-center gap-1 sm:gap-2">
           <span class="text-slate-500 font-black">(</span>
           <span id="slot0" onclick="selectSlot(0)" class="cursor-pointer font-black px-2 py-1 rounded transition">____</span>
-          <span class="text-slate-600 font-black">&gt;</span>
+          <span id="op0" class="text-slate-500 font-black font-mono">&gt;</span>
           <span id="slot1" onclick="selectSlot(1)" class="cursor-pointer font-black px-2 py-1 rounded transition">____</span>
-          <span class="text-slate-600 font-black">&gt;</span>
+          <span id="op1" class="text-slate-500 font-black font-mono">&gt;</span>
           <span id="slot2" onclick="selectSlot(2)" class="cursor-pointer font-black px-2 py-1 rounded transition">____</span>
-          <span class="text-slate-600 font-black">&gt;</span>
+          <span id="op2" class="text-slate-500 font-black font-mono">&gt;</span>
           <span id="slot3" onclick="selectSlot(3)" class="cursor-pointer font-black px-2 py-1 rounded transition">____</span>
           <span class="text-slate-500 font-black">)</span>
         </div>
@@ -432,6 +432,29 @@
       document.getElementById('currentChestDisplay').innerText = `第 ${chest.id} 題 / 共 7 題`;
       document.getElementById('groupScore').innerText = `${groupScore} 分`;
 
+      // 動態符號切換：寶箱 5 的前兩個答案相等，顯示為 =，其餘題顯示為 >
+      const op0 = document.getElementById('op0');
+      const badge = document.getElementById('orderRuleBadge');
+      if (chest.id === 5) {
+        if (op0) {
+          op0.innerText = "=";
+          op0.className = "text-amber-400 font-black font-mono text-xl sm:text-2xl px-0.5";
+        }
+        if (badge) {
+          badge.innerText = "含相等數值 (=)";
+          badge.className = "text-[10px] text-amber-900 bg-amber-200 px-2 py-0.5 rounded-full font-black border border-amber-300";
+        }
+      } else {
+        if (op0) {
+          op0.innerText = ">";
+          op0.className = "text-slate-500 font-black font-mono";
+        }
+        if (badge) {
+          badge.innerText = "由大至小排列";
+          badge.className = "text-[10px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-bold";
+        }
+      }
+
       if (!isJoined) {
         document.getElementById('viewLogin').classList.remove('hidden');
         document.getElementById('viewWaiting').classList.add('hidden');
@@ -547,7 +570,7 @@
       }
     }
 
-    // 提交密碼驗證：加入「忘記排序 / 順序 ABCD」智慧提示
+    // 提交密碼驗證：加入「忘記排序 / 順序 ABCD」智慧提示與寶箱 5 等號格式化
     function submitPassword() {
       const chest = CHEST_DATABASE[currentChestIndex];
       for (let i = 0; i < 4; i++) {
@@ -568,7 +591,12 @@
         soundSuccess();
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
 
-        document.getElementById('successPasswordReview').innerText = correctValues.join(" > ");
+        // 寶箱 5 特殊格式回顧
+        if (chest.id === 5) {
+          document.getElementById('successPasswordReview').innerText = "11 = 11 > 3 > -1";
+        } else {
+          document.getElementById('successPasswordReview').innerText = correctValues.join(" > ");
+        }
 
         // 發佈 MQTT 開箱消息至雲端總線
         if (mqttClient && mqttClient.connected) {
@@ -590,7 +618,11 @@
 
       if (isAllNumbersCorrect) {
         soundError();
-        showAlert("⚠️ 全組數值皆計算正確！但答案需由大至小排序，請調整順序後再開箱！", "warning");
+        if (chest.id === 5) {
+          showAlert("⚠️ 全組數值皆計算正確！但答案需由大至小排序 (11 = 11 > 3 > -1)，請調整順序後再開箱！", "warning");
+        } else {
+          showAlert("⚠️ 全組數值皆計算正確！但答案需由大至小排序，請調整順序後再開箱！", "warning");
+        }
         return;
       }
 
@@ -605,7 +637,7 @@
       }
 
       const roleNames = { A: "先鋒挑戰者 (A)", B: "核心探索者一 (B)", C: "核心探索者二 (C)", D: "基礎領航員 (D)" };
-      showAlert(`❌ 密碼錯誤！經診斷：【學生 ${wrongStudent} - ${roleNames[wrongStudent]}】計算有誤，請同伴指導！`, "error");
+      showAlert(`❌ 密碼錯誤！經診斷：【學生 ${wrongStudent} - ${roleNames[wrongStudent] || '組員'}】計算有誤，請同伴指導！`, "error");
     }
 
     function showAlert(msg, type) {

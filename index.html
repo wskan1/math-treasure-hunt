@@ -189,7 +189,7 @@
 
   <!-- 底部版權 -->
   <footer class="text-center text-xs text-slate-400 py-2.5 border-t border-slate-200">
-    初中數學科 • 公式代入法尋寶大冒險 2.0 (MQTT 雲端總線版)
+    初中數學科 • 公式代入法尋寶大冒險 2.0 (MQTT 雲端總線版 • 防休眠加固)
   </footer>
 
   <!-- 學生端/全班共用：即時排行榜 Modal -->
@@ -364,16 +364,13 @@
           updateView();
         }
       } else if (topic === TOPIC_SOLVE) {
-        // 收到某組開箱成功
         chestSolvedCount++;
         const rank = chestSolvedCount;
         const points = Math.max(100 - (rank - 1) * 10, 50);
 
-        // 更新團隊數據
         const t = teamsData.find(item => item.name === data.groupName);
         if (t) t.score += points;
 
-        // 若是本組通關，立即顯示名次
         if (data.groupName === currentGroupName) {
           groupScore += points;
           displayPersonalRank(rank, points);
@@ -399,7 +396,7 @@
       }
     }
 
-    // 4. 音效系統 (免載入外部音頻，iPad 原生合成)
+    // 4. 音效系統
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep(freq, type, duration) {
       try {
@@ -508,12 +505,37 @@
       if (el) el.innerText = `本題通關：${chestSolvedCount} 組`;
     }
 
+    // iPad 螢幕常亮鎖 (Screen WakeLock)
+    let wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Screen Wake Lock is active');
+        }
+      } catch (err) {
+        console.warn(`${err.name}, ${err.message}`);
+      }
+    }
+
+    // 螢幕被喚醒或網頁切換回來時，自動補償重連
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        if (wakeLock === null) requestWakeLock();
+        if (!mqttClient || !mqttClient.connected) {
+          console.log('Visibility restored: reconnecting MQTT...');
+          initMQTT();
+        }
+      }
+    });
+
     function joinGame() {
       currentGroupName = document.getElementById('groupSelect').value;
       const myTeam = teamsData.find(item => item.name === currentGroupName);
       if (myTeam) groupScore = myTeam.score;
       isJoined = true;
       soundClick();
+      requestWakeLock(); // 啟用螢幕防熄滅鎖
       updateView();
     }
 
@@ -570,7 +592,7 @@
       }
     }
 
-    // 提交密碼驗證：加入「忘記排序 / 順序 ABCD」智慧提示與寶箱 5 等號格式化
+    // 提交密碼驗證
     function submitPassword() {
       const chest = CHEST_DATABASE[currentChestIndex];
       for (let i = 0; i < 4; i++) {
@@ -605,7 +627,6 @@
             chestIndex: currentChestIndex
           }));
         } else {
-          // 本機離線模式備援
           chestSolvedCount++;
           displayPersonalRank(chestSolvedCount, 100);
         }

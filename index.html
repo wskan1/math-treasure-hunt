@@ -161,7 +161,7 @@
           </button>
         </div>
 
-        <!-- 錯誤診斷警示框 -->
+        <!-- 錯誤診斷與排序提示框 -->
         <div id="feedbackAlert" class="hidden p-3.5 rounded-2xl text-xs font-bold max-w-sm mx-auto text-left leading-relaxed"></div>
       </div>
     </div>
@@ -307,7 +307,7 @@
     function initMQTT() {
       const brokerUrl = BROKERS[brokerIndex];
       const clientId = "client_" + Math.random().toString(16).substring(2, 10);
-      
+
       try {
         mqttClient = mqtt.connect(brokerUrl, {
           clientId: clientId,
@@ -547,6 +547,7 @@
       }
     }
 
+    // 提交密碼驗證：加入「忘記排序 / 順序 ABCD」智慧提示
     function submitPassword() {
       const chest = CHEST_DATABASE[currentChestIndex];
       for (let i = 0; i < 4; i++) {
@@ -559,22 +560,11 @@
 
       const inputValues = currentSlots.map(Number);
       const correctValues = chest.correctOrder;
-      let hasError = false;
-      let wrongStudent = null;
 
-      for (let i = 0; i < 4; i++) {
-        if (inputValues[i] !== correctValues[i]) {
-          hasError = true;
-          wrongStudent = chest.sortedStudents[i];
-          break;
-        }
-      }
+      // 1. 檢查是否完全吻合由大至小之正確密碼
+      const isExactlyCorrect = inputValues.every((val, idx) => val === correctValues[idx]);
 
-      if (hasError) {
-        soundError();
-        const roleNames = { A: "先鋒挑戰者 (A)", B: "核心探索者一 (B)", C: "核心探索者二 (C)", D: "基礎領航員 (D)" };
-        showAlert(`❌ 密碼錯誤！經診斷：【學生 ${wrongStudent} - ${roleNames[wrongStudent]}】計算有誤，請同伴指導！`, "error");
-      } else {
+      if (isExactlyCorrect) {
         soundSuccess();
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
 
@@ -591,7 +581,31 @@
           chestSolvedCount++;
           displayPersonalRank(chestSolvedCount, 100);
         }
+        return;
       }
+
+      // 2. 智慧排序偵測：檢查是否「所有數字皆算對，但忘記由大至小排序」(如順著 ABCD 次序輸入)
+      const sortedInputs = [...inputValues].sort((a, b) => b - a);
+      const isAllNumbersCorrect = sortedInputs.every((val, idx) => val === correctValues[idx]);
+
+      if (isAllNumbersCorrect) {
+        soundError();
+        showAlert("⚠️ 全組數值皆計算正確！但答案需由大至小排序，請調整順序後再開箱！", "warning");
+        return;
+      }
+
+      // 3. 確定數值有錯時，診斷是哪位同學算錯
+      soundError();
+      let wrongStudent = null;
+      for (let i = 0; i < 4; i++) {
+        if (inputValues[i] !== correctValues[i]) {
+          wrongStudent = chest.sortedStudents[i];
+          break;
+        }
+      }
+
+      const roleNames = { A: "先鋒挑戰者 (A)", B: "核心探索者一 (B)", C: "核心探索者二 (C)", D: "基礎領航員 (D)" };
+      showAlert(`❌ 密碼錯誤！經診斷：【學生 ${wrongStudent} - ${roleNames[wrongStudent]}】計算有誤，請同伴指導！`, "error");
     }
 
     function showAlert(msg, type) {
@@ -615,7 +629,6 @@
     }
 
     function renderLeaderboard() {
-      // 依分數由大至小排序
       const sorted = [...teamsData].sort((a, b) => b.score - a.score);
 
       const html = sorted.map((t, idx) => {
